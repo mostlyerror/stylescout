@@ -44,10 +44,11 @@ A Python bot that searches for fashion videos on TikTok, identifies clothing ite
    pip install -r requirements.txt
    ```
 
-5. Install Playwright browsers:
+5. **IMPORTANT**: Install Playwright browsers:
    ```
    python -m playwright install
    ```
+   This step is required to download the Chromium browser that the bot uses for automation. Without this step, the bot will fail to run.
 
 6. Set up environment variables:
    ```
@@ -77,6 +78,21 @@ The bot will:
 1. Search for fashion videos on TikTok
 2. Identify fashion items in the videos 
 3. Post comments with Amazon affiliate links
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"Browser not found" error**
+   - Solution: Make sure you've run `python -m playwright install` as described in step 5 of the installation process
+   - This command downloads the necessary browser binaries for Playwright
+
+2. **"Playwright not found" error**
+   - Solution: Make sure you've activated your virtual environment and installed all requirements with `pip install -r requirements.txt`
+
+3. **Browser launch issues**
+   - Make sure you have sufficient permissions in your working directory
+   - Check if your antivirus software is blocking Playwright's browser launch
 
 ## Development
 
