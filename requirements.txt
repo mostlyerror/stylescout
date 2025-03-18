@@ -1,0 +1,11 @@
+# Core dependencies
+playwright==1.32.1
+requests==2.28.2
+
+# Playwright browser dependencies - installed with playwright install
+# Run 'python -m playwright install' after pip install
+
+# Optional development dependencies (uncomment if needed)
+# pytest==7.3.1
+# black==23.3.0
+# flake8==6.0.0 
