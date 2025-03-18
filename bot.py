@@ -1,9 +1,25 @@
 from playwright.sync_api import sync_playwright
 import requests
 import time
+from dotenv import load_dotenv
+import os
+import random
+
+# Load environment variables
+load_dotenv()
 
 # Amazon affiliate tag configuration
-AMAZON_AFFILIATE_TAG = "your-affiliate-tag"
+AMAZON_AFFILIATE_TAG = os.getenv('AMAZON_AFFILIATE_TAG')
+if not AMAZON_AFFILIATE_TAG:
+    raise ValueError("AMAZON_AFFILIATE_TAG not found in environment variables. Please check your .env file.")
+
+# Bot behavior configuration
+MIN_DELAY = int(os.getenv('MIN_DELAY_SECONDS', '45'))
+MAX_DELAY = int(os.getenv('MAX_DELAY_SECONDS', '75'))
+
+def get_random_delay():
+    """Generate a random delay between comments to simulate human-like behavior."""
+    return random.randint(MIN_DELAY, MAX_DELAY)
 
 # Amazon affiliate API (placeholder function)
 def search_amazon_product(query):
@@ -43,4 +59,6 @@ for video in videos:
     comment_text = f"Love this look! Get similar styles here: {', '.join(product_links)} #fashion"
     comment_on_video(video, comment_text)
 
-    time.sleep(60)  # Delay between comments
+    delay = get_random_delay()
+    print(f"Waiting {delay} seconds before next comment...")
+    time.sleep(delay)  # Random delay between comments

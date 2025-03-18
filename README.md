@@ -49,16 +49,22 @@ A Python bot that searches for fashion videos on TikTok, identifies clothing ite
    python -m playwright install
    ```
 
+6. Set up environment variables:
+   ```
+   cp .env.example .env
+   ```
+   Then edit the `.env` file with your actual configuration values.
+
 ## Configuration
 
-Before running the bot, update the following settings in `bot.py`:
+The bot uses environment variables for configuration. Create a `.env` file in the project root with the following variables:
 
 1. Set your Amazon affiliate tag:
-   ```python
-   AMAZON_AFFILIATE_TAG = "your-affiliate-tag"  # Replace with your actual tag
+   ```
+   AMAZON_AFFILIATE_TAG=your-actual-affiliate-tag
    ```
 
-2. Customize the fashion items list or implement AI detection logic
+2. Customize the fashion items list or implement AI detection logic in `bot.py`
 
 ## Usage
 
