@@ -7,6 +7,8 @@ A Python bot that searches for fashion videos on TikTok, identifies clothing ite
 - Automatically finds trending fashion videos on TikTok
 - Comments on videos with affiliate links to similar fashion items
 - Uses Playwright for browser automation
+- Handles TikTok authentication automatically
+- Persists login state to avoid repeated captcha solving
 
 ## Setup Instructions
 
@@ -14,6 +16,7 @@ A Python bot that searches for fashion videos on TikTok, identifies clothing ite
 
 - Python 3.8 or higher
 - Git
+- TikTok account with commenting permissions
 
 ### Installation
 
@@ -65,19 +68,52 @@ The bot uses environment variables for configuration. Create a `.env` file in th
    AMAZON_AFFILIATE_TAG=your-actual-affiliate-tag
    ```
 
-2. Customize the fashion items list or implement AI detection logic in `bot.py`
+2. Set your TikTok login credentials:
+   ```
+   TIKTOK_USERNAME=your-tiktok-username
+   TIKTOK_PASSWORD=your-tiktok-password
+   ```
+   Note: Make sure your TikTok account has commenting permissions and is in good standing.
+
+3. Configure bot behavior (optional):
+   ```
+   MIN_DELAY_SECONDS=45
+   MAX_DELAY_SECONDS=75
+   ```
+
+4. Customize the fashion items list or implement AI detection logic in `bot.py`
 
 ## Usage
 
-Run the bot with:
-```
-python bot.py
-```
+1. First run (with visible browser to handle captcha):
+   ```bash
+   python bot.py --visible
+   ```
+   > **Note**: The `--visible` flag is required for the first run or when you need to solve a captcha. You need to be able to see and interact with the browser window to solve the captcha manually. After the first successful login, you can run the bot headlessly since it will use the saved authentication state.
+
+2. Subsequent runs (can run headless):
+   ```bash
+   python bot.py
+   ```
+
+3. If you need to force a new login:
+   ```bash
+   python bot.py --force-login
+   ```
 
 The bot will:
-1. Search for fashion videos on TikTok
-2. Identify fashion items in the videos 
-3. Post comments with Amazon affiliate links
+1. Log in to your TikTok account (or use saved authentication state)
+2. Search for fashion videos on TikTok
+3. Identify fashion items in the videos 
+4. Post comments with Amazon affiliate links
+
+### Authentication State
+
+The bot saves your TikTok authentication state after a successful login. This means:
+- You only need to solve captchas once during the first login
+- Subsequent runs will reuse the saved authentication
+- If the saved authentication expires, the bot will automatically perform a new login
+- Use `--force-login` if you need to perform a fresh login
 
 ## Troubleshooting
 
@@ -93,6 +129,14 @@ The bot will:
 3. **Browser launch issues**
    - Make sure you have sufficient permissions in your working directory
    - Check if your antivirus software is blocking Playwright's browser launch
+   - Try running in visible mode with `--visible` flag to see what's happening
+
+4. **Login issues**
+   - Verify your TikTok credentials in the .env file
+   - Try running in visible mode (`--visible` flag) to see the login process
+   - If you see a captcha, run in visible mode and solve it manually
+   - If login fails, try using `--force-login` to perform a fresh login
+   - Make sure your TikTok account is not locked or restricted
 
 ## Development
 
