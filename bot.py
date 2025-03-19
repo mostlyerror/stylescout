@@ -14,6 +14,7 @@ load_dotenv()
 parser = argparse.ArgumentParser(description='TikTok Fashion Scout Bot')
 parser.add_argument('--visible', action='store_true', help='Run browser in visible mode (useful for debugging)')
 parser.add_argument('--force-login', action='store_true', help='Force new login, ignoring saved state')
+parser.add_argument('--debug', type=int, default=0, choices=[0, 1, 2], help='Debug level (0: none, 1: basic, 2: verbose)')
 args = parser.parse_args()
 
 # Configuration
@@ -39,10 +40,33 @@ def get_random_delay():
     """Generate a random delay between comments to simulate human-like behavior."""
     return random.randint(MIN_DELAY, MAX_DELAY)
 
-def log_action(message):
-    """Print a timestamped action message."""
+def log_action(message, debug_level=0):
+    """Print a timestamped action message.
+    
+    Args:
+        message: The message to log
+        debug_level: Debug level (0: normal log, 1: basic debug, 2: verbose debug)
+    """
+    if debug_level > 0 and args.debug < debug_level:
+        return
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {message}")
+    prefix = ""
+    if debug_level == 1:
+        prefix = "[DEBUG] "
+    elif debug_level == 2:
+        prefix = "[DEBUG2] "
+    print(f"[{timestamp}] {prefix}{message}", flush=True)
+
+# Test log at script start
+log_action("Script started")
+log_action(f"Debug level: {args.debug}", debug_level=1)
+
+# Main execution
+log_action("Starting TikTok Fashion Scout Bot...")
+log_action(f"Using Amazon affiliate tag: {AMAZON_AFFILIATE_TAG}")
+log_action(f"Running in {'visible' if args.visible else 'headless'} mode", debug_level=1)
+if args.force_login:
+    log_action("Force login enabled - will perform fresh login", debug_level=1)
 
 def handle_tiktok_login(page, context):
     """Handle TikTok login process."""
@@ -90,7 +114,7 @@ def handle_tiktok_login(page, context):
         time.sleep(2)
         
         # Debug: Log all elements with class names
-        log_action("Debugging page elements...")
+        log_action("Debugging page elements...", debug_level=2)
         elements = page.evaluate("""
             const elements = document.querySelectorAll('*');
             const elementInfo = [];
@@ -109,7 +133,7 @@ def handle_tiktok_login(page, context):
             };
             debugInfo;
         """)
-        log_action(f"Found elements: {elements}")
+        log_action(f"Found elements: {elements}", debug_level=2)
         
         # Wait for the login modal to appear and get its content
         log_action("Waiting for login modal...")
@@ -130,7 +154,7 @@ def handle_tiktok_login(page, context):
             };
             result;
         """)
-        log_action(f"Login options in modal: {modal_content}")
+        log_action(f"Login options in modal: {modal_content}", debug_level=2)
         
         # Try to find and click the login option within the modal
         log_action("Looking for login option...")
@@ -179,7 +203,7 @@ def handle_tiktok_login(page, context):
         time.sleep(2)
         
         # Debug: Log all form elements
-        log_action("Debugging form elements...")
+        log_action("Debugging form elements...", debug_level=2)
         form_elements = page.evaluate("""
             const forms = document.querySelectorAll('form');
             const inputs = document.querySelectorAll('input');
@@ -201,7 +225,7 @@ def handle_tiktok_login(page, context):
             };
             formInfo;
         """)
-        log_action(f"Form elements found: {form_elements}")
+        log_action(f"Form elements found: {form_elements}", debug_level=2)
         
         log_action("Filling in login credentials...")
         page.evaluate(f"""
@@ -280,23 +304,31 @@ def get_browser_context(playwright):
 
 # Amazon affiliate API (placeholder function)
 def search_amazon_product(query):
-    log_action(f"Generating Amazon affiliate link for: {query}")
+    log_action(f"Generating Amazon affiliate link for: {query}", debug_level=2)
     return f"https://www.amazon.com/s?k={query.replace(' ', '+')}&tag={AMAZON_AFFILIATE_TAG}"
 
 # TikTok automation to find fashion videos
 def get_fashion_videos():
     log_action("Starting TikTok search for fashion videos...")
     with sync_playwright() as p:
+        log_action("Initialized Playwright...", debug_level=2)
         browser, context = get_browser_context(p)
+        log_action("Got browser context...", debug_level=2)
         page = context.new_page()
+        log_action("Created new page...", debug_level=2)
         
         # Go to TikTok and handle login
+        log_action("Navigating to TikTok...")
         page.goto("https://www.tiktok.com")
         if not handle_tiktok_login(page, context):
             raise Exception("Failed to log in to TikTok. Please check your credentials and try again.")
         
         # Navigate to search
+        log_action("Navigating to fashion search...")
         page.goto("https://www.tiktok.com/search?q=fashion")
+
+        # wait for page to load
+        page.wait_for_load_state('networkidle')
         
         log_action("Waiting for search results to load...")
         try:
@@ -306,6 +338,7 @@ def get_fashion_videos():
                     throw new Error('No videos found in search results');
                 }
             """)
+            log_action("Found video links in search results...", debug_level=2)
         except Exception as e:
             log_action(f"No videos found: {str(e)}")
             return []
@@ -322,9 +355,10 @@ def get_fashion_videos():
             };
             videoInfo;
         """)
+        log_action(f"Extracted {len(video_links.get('links', []))} video links...", debug_level=2)
         browser.close()
-        log_action(f"Found {len(video_links)} fashion videos")
-        return video_links[:3]  # Fetch top 3 videos
+        log_action("Closed browser...", debug_level=2)
+        return video_links.get('links', [])[:3]  # Fetch top 3 videos
 
 # Post a comment on the video
 def comment_on_video(video_url, message):
@@ -368,17 +402,11 @@ def comment_on_video(video_url, message):
         """)
 
         browser.close()
-        log_action("Comment posted successfully")
+        log_action("Comment posted successfully", debug_level=2)
         return True
 
-# Main execution
-log_action("Starting TikTok Fashion Scout Bot...")
-log_action(f"Using Amazon affiliate tag: {AMAZON_AFFILIATE_TAG}")
-log_action(f"Running in {'visible' if args.visible else 'headless'} mode")
-if args.force_login:
-    log_action("Force login enabled - will perform fresh login")
-
 try:
+    # Get fashion videos
     videos = get_fashion_videos()
     if not videos:
         log_action("No videos found. Exiting...")

@@ -9,6 +9,7 @@ A Python bot that searches for fashion videos on TikTok, identifies clothing ite
 - Uses Playwright for browser automation
 - Handles TikTok authentication automatically
 - Persists login state to avoid repeated captcha solving
+- Debug logging for troubleshooting
 
 ## Setup Instructions
 
@@ -17,6 +18,7 @@ A Python bot that searches for fashion videos on TikTok, identifies clothing ite
 - Python 3.8 or higher
 - Git
 - TikTok account with commenting permissions
+- Amazon Associates account
 
 ### Installation
 
@@ -101,6 +103,11 @@ The bot uses environment variables for configuration. Create a `.env` file in th
    python bot.py --force-login
    ```
 
+4. Enable debug logging:
+   ```bash
+   python bot.py --debug
+   ```
+
 The bot will:
 1. Log in to your TikTok account (or use saved authentication state)
 2. Search for fashion videos on TikTok
@@ -114,6 +121,40 @@ The bot saves your TikTok authentication state after a successful login. This me
 - Subsequent runs will reuse the saved authentication
 - If the saved authentication expires, the bot will automatically perform a new login
 - Use `--force-login` if you need to perform a fresh login
+
+### Debug Logging
+
+The bot includes a comprehensive debug logging system with three levels that can be enabled with the `--debug` flag:
+
+```bash
+# No debug output (default)
+python bot.py
+
+# Basic debug output (level 1)
+python bot.py --debug 1
+
+# Verbose debug output (level 2)
+python bot.py --debug 2
+```
+
+Debug levels:
+- Level 0 (default): Shows only essential operational logs
+- Level 1 (basic): Shows additional operational information including:
+  - Browser state changes
+  - Login flow steps
+  - Network activity
+  - Configuration details
+- Level 2 (verbose): Shows detailed debugging information including:
+  - Page element information
+  - Form field details
+  - DOM structure
+  - All available elements and their attributes
+
+Debug logs are particularly useful when:
+- Troubleshooting login issues
+- Investigating why elements aren't being found
+- Understanding the bot's behavior
+- Diagnosing network or timing problems
 
 ## Troubleshooting
 
