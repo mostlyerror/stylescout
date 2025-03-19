@@ -46,51 +46,223 @@ def log_action(message):
 
 def handle_tiktok_login(page, context):
     """Handle TikTok login process."""
-    log_action("Checking if login is required...")
+    log_action("Checking login state...")
     
     try:
-        # Wait for either the login form or the search results
-        login_button = page.wait_for_selector("button:has-text('Log in')", timeout=5000)
-        if login_button:
-            log_action("Login required. Attempting to log in...")
-            
-            # Click the login button
-            login_button.click()
-            
-            # Wait for and fill in the login form
-            page.wait_for_selector("input[name='username']")
-            page.fill("input[name='username']", TIKTOK_USERNAME)
-            page.fill("input[name='password']", TIKTOK_PASSWORD)
-            
-            # Click the login button
-            page.click("button:has-text('Log in')")
-            
-            # Check for captcha
-            captcha_frame = page.frame_locator('iframe[title*="captcha"]')
-            if captcha_frame:
-                print("Captcha detected! Please solve it manually...")
-                # Wait for captcha to be solved (frame disappears)
-                page.wait_for_selector('iframe[title*="captcha"]', state='detached', timeout=300000)
-            
-            # Wait for login to complete
-            try:
-                page.wait_for_selector("input[type='search']", timeout=10000)
-                log_action("Successfully logged in to TikTok")
-                
-                # Save storage state after successful login
-                if not os.path.exists(STORAGE_STATE_DIR):
-                    os.makedirs(STORAGE_STATE_DIR)
-                context.storage_state(path=STORAGE_STATE_PATH)
-                log_action("Saved authentication state for future use")
-                
-                return True
-            except PlaywrightTimeoutError:
-                log_action("Login might have failed or requires additional verification")
-                return False
-                
-    except PlaywrightTimeoutError:
-        log_action("No login required or already logged in")
+        # First check if we're already logged in by looking for the search bar
+        log_action("Checking if already logged in...")
+        page.evaluate("""
+            const searchBar = document.querySelector('input[type="search"]');
+            if (!searchBar) {
+                throw new Error('Search bar not found - not logged in');
+            }
+        """)
+        log_action("Found search bar - already logged in")
         return True
+    except Exception:
+        log_action("Not logged in - proceeding with login flow")
+    
+    # If we get here, we need to log in
+    log_action("Attempting to log in...")
+    
+    try:
+        # Wait for and click the login button
+        log_action("Looking for login button...")
+        # Wait for page to be fully loaded
+        page.wait_for_load_state('networkidle')
+        
+        # Check if login button exists
+        page.evaluate("""
+            const button = document.querySelector('#header-login-button');
+            if (!button) {
+                throw new Error('Login button not found');
+            }
+        """)
+        
+        log_action("Found login button, attempting to click...")
+        page.evaluate("document.querySelector('#header-login-button').click()")
+        
+        # Wait for and click the "Use phone / email / username" button
+        log_action("Waiting for login options to appear...")
+        page.wait_for_load_state('networkidle')
+        
+        # Add a small delay to let the modal appear
+        time.sleep(2)
+        
+        # Debug: Log all elements with class names
+        log_action("Debugging page elements...")
+        elements = page.evaluate("""
+            const elements = document.querySelectorAll('*');
+            const elementInfo = [];
+            elements.forEach(el => {
+                elementInfo.push({
+                    tag: el.tagName,
+                    class: el.className,
+                    id: el.id,
+                    text: el.textContent.trim()
+                });
+            });
+            // Use the variable in subsequent code
+            const debugInfo = {
+                totalElements: elementInfo.length,
+                elements: elementInfo
+            };
+            debugInfo;
+        """)
+        log_action(f"Found elements: {elements}")
+        
+        # Wait for the login modal to appear and get its content
+        log_action("Waiting for login modal...")
+        modal_content = page.evaluate("""
+            const modal = document.querySelector('[role="dialog"][aria-modal="true"][data-e2e="login-modal"]');
+            if (!modal) {
+                throw new Error('Login modal not found');
+            }
+            
+            const loginOptions = modal.querySelectorAll('[role="link"][data-e2e="channel-item"]');
+            const optionTexts = [];
+            loginOptions.forEach(option => optionTexts.push(option.textContent.trim()));
+            
+            // Assign to a variable that will be returned
+            const result = {
+                optionCount: optionTexts.length,
+                options: optionTexts
+            };
+            result;
+        """)
+        log_action(f"Login options in modal: {modal_content}")
+        
+        # Try to find and click the login option within the modal
+        log_action("Looking for login option...")
+        page.evaluate("""
+            const modal = document.querySelector('[role="dialog"][aria-modal="true"][data-e2e="login-modal"]');
+            if (!modal) {
+                throw new Error('Login modal not found');
+            }
+            
+            const loginOptions = modal.querySelectorAll('[role="link"][data-e2e="channel-item"]');
+            let targetOption = null;
+            loginOptions.forEach(option => {
+                if (option.textContent.trim().includes('Use phone / email / username')) {
+                    targetOption = option;
+                }
+            });
+            if (!targetOption) {
+                throw new Error('Could not find "Use phone / email / username" option in modal');
+            }
+            targetOption.click();
+        """)
+        
+        # Wait for and click the "Log in with email or username" link
+        log_action("Waiting for email login option...")
+        page.wait_for_load_state('networkidle')
+        log_action("Clicking 'Log in with email or username' link...")
+        page.evaluate("""
+            const links = document.querySelectorAll('a');
+            let targetLink = null;
+            links.forEach(link => {
+                if (link.textContent.trim().includes('Log in with email or username')) {
+                    targetLink = link;
+                }
+            });
+            if (!targetLink) {
+                throw new Error('Could not find "Log in with email or username" link');
+            }
+            targetLink.click();
+        """)
+        
+        # Wait for and fill in the login form
+        log_action("Waiting for login form...")
+        # Wait for network to be idle after clicking the link
+        page.wait_for_load_state('networkidle')
+        # Add a small delay to let the form appear
+        time.sleep(2)
+        
+        # Debug: Log all form elements
+        log_action("Debugging form elements...")
+        form_elements = page.evaluate("""
+            const forms = document.querySelectorAll('form');
+            const inputs = document.querySelectorAll('input');
+            const formInfo = {
+                formCount: forms.length,
+                forms: Array.from(forms).map(form => ({
+                    id: form.id,
+                    class: form.className,
+                    action: form.action
+                })),
+                inputCount: inputs.length,
+                inputs: Array.from(inputs).map(input => ({
+                    type: input.type,
+                    name: input.name,
+                    id: input.id,
+                    class: input.className,
+                    placeholder: input.placeholder
+                }))
+            };
+            formInfo;
+        """)
+        log_action(f"Form elements found: {form_elements}")
+        
+        log_action("Filling in login credentials...")
+        page.evaluate(f"""
+            const usernameInput = document.querySelector('input[type="text"][placeholder="Email or username"]');
+            const passwordInput = document.querySelector('input[type="password"][placeholder="Password"]');
+            if (!usernameInput || !passwordInput) {{
+                throw new Error('Could not find login form inputs');
+            }}
+            usernameInput.value = '{TIKTOK_USERNAME}';
+            passwordInput.value = '{TIKTOK_PASSWORD}';
+        """)
+        
+        # Click the login button
+        log_action("Submitting login form...")
+        page.evaluate("""
+            const modal = document.querySelector('[role="dialog"][aria-modal="true"][data-e2e="login-modal"]');
+            if (!modal) {
+                throw new Error('Login modal not found');
+            }
+            
+            const loginButton = modal.querySelector('button[type="submit"][data-e2e="login-button"]');
+            if (!loginButton) {
+                throw new Error('Could not find login submit button');
+            }
+            loginButton.click();
+        """)
+        
+        # Check for captcha
+        log_action("Checking for captcha...")
+        page.evaluate("""
+            const captchaFrame = document.querySelector('iframe[title*="captcha"]');
+            if (captchaFrame) {
+                throw new Error('Captcha detected');
+            }
+        """)
+        
+        # Wait for login to complete
+        try:
+            log_action("Waiting for login to complete...")
+            page.evaluate("""
+                const searchBar = document.querySelector('input[type="search"]');
+                if (!searchBar) {
+                    throw new Error('Login might have failed - search bar not found');
+                }
+            """)
+            log_action("Successfully logged in to TikTok")
+            
+            # Save storage state after successful login
+            if not os.path.exists(STORAGE_STATE_DIR):
+                os.makedirs(STORAGE_STATE_DIR)
+            context.storage_state(path=STORAGE_STATE_PATH)
+            log_action("Saved authentication state for future use")
+            
+            return True
+        except Exception as e:
+            log_action(f"Login might have failed: {str(e)}")
+            return False
+            
+    except Exception as e:
+        log_action(f"Login error: {str(e)}")
+        return False
 
 def get_browser_context(playwright):
     """Get a browser context with optional storage state."""
@@ -128,12 +300,28 @@ def get_fashion_videos():
         
         log_action("Waiting for search results to load...")
         try:
-            page.wait_for_selector("a[href*='/video/']", timeout=10000)
-        except PlaywrightTimeoutError:
-            log_action("No videos found in search results")
+            page.evaluate("""
+                const videoLinks = document.querySelectorAll('a[href*="/video/"]');
+                if (!videoLinks.length) {
+                    throw new Error('No videos found in search results');
+                }
+            """)
+        except Exception as e:
+            log_action(f"No videos found: {str(e)}")
             return []
 
-        video_links = page.eval_on_selector_all("a[href*='/video/']", "elements => elements.map(el => el.href)")
+        video_links = page.evaluate("""
+            const links = document.querySelectorAll('a[href*="/video/"]');
+            const hrefs = [];
+            links.forEach(link => hrefs.push(link.href));
+            
+            // Use the variable in subsequent code
+            const videoInfo = {
+                totalVideos: hrefs.length,
+                links: hrefs
+            };
+            videoInfo;
+        """)
         browser.close()
         log_action(f"Found {len(video_links)} fashion videos")
         return video_links[:3]  # Fetch top 3 videos
@@ -155,15 +343,29 @@ def comment_on_video(video_url, message):
         # Wait for comment box
         log_action("Waiting for comment box to load...")
         try:
-            page.wait_for_selector("textarea[data-e2e='comment-text-area']", timeout=10000)
-        except PlaywrightTimeoutError:
-            log_action("Could not find comment box. Video might require login or be unavailable.")
+            page.evaluate("""
+                const commentBox = document.querySelector('textarea[data-e2e="comment-text-area"]');
+                if (!commentBox) {
+                    throw new Error('Comment box not found');
+                }
+            """)
+        except Exception as e:
+            log_action(f"Could not find comment box: {str(e)}")
             browser.close()
             return False
 
-        page.fill("textarea[data-e2e='comment-text-area']", message)
+        page.evaluate(f"""
+            const commentBox = document.querySelector('textarea[data-e2e="comment-text-area"]');
+            commentBox.value = '{message}';
+        """)
         log_action("Posting comment...")
-        page.click("button[data-e2e='comment-post']")
+        page.evaluate("""
+            const postButton = document.querySelector('button[data-e2e="comment-post"]');
+            if (!postButton) {
+                throw new Error('Comment post button not found');
+            }
+            postButton.click();
+        """)
 
         browser.close()
         log_action("Comment posted successfully")
