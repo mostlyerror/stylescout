@@ -1,0 +1,56 @@
+# Playwright Best Practices
+- Use `page.evaluate()` instead of `page.wait_for_selector()` for element checks
+- When checking for element existence, use this pattern:
+  ```python
+  page.evaluate("""
+      const element = document.querySelector('selector');
+      if (!element) {
+          throw new Error('Element not found');
+      }
+  """)
+- Only use `page.wait_for_load_state()` for page-level loading states
+- Use JavaScript's native DOM methods for element selection and manipulation
+- Avoid Playwright-specific selectors in JavaScript code
+
+# Logging Best Practices
+- When using `page.evaluate()`, never use `console.log()` - it's not visible in the bot's terminal
+- Instead, return values from `page.evaluate()` and use `log_action()` in Python
+- Example:
+  ```python
+  # Good:
+  result = page.evaluate("return someValue;")
+  log_action(f"Result: {result}")
+  
+  # Bad:
+  page.evaluate("console.log(someValue);")  # Won't be visible in terminal
+  ```
+- Note: This rule only applies to JavaScript code executed via `page.evaluate()`. Regular JavaScript code (like browser extensions or scripts) can still use `console.log()`. 
+
+# JavaScript Returns:
+- Never use return statements in JavaScript code passed to page.evaluate()
+- Instead, assign values to a variable and use that variable in subsequent code
+- Example:
+  ```javascript
+  // Good
+  const elements = page.evaluate("""
+      const elements = document.querySelectorAll('.some-class');
+      const texts = [];
+      elements.forEach(el => texts.push(el.textContent));
+      texts;
+  """)
+  
+  // Bad
+  const elements = page.evaluate("""
+      return Array.from(document.querySelectorAll('.some-class')).map(el => el.textContent);
+  """)
+  ``` 
+
+# Clarifying Questions:
+- When making changes that could affect functionality, ask clarifying questions to be at least 95% sure of the correct approach
+- Examples of when to ask:
+  - When changing selectors that might be dynamic or site-specific
+  - When modifying error handling that could affect user experience
+  - When changing timing or delay values
+  - When modifying authentication flows
+- Example:
+  "I notice this selector looks very specific. Could you confirm if this is a stable selector that won't change, or should we use a more general approach?" 
