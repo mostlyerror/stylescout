@@ -12,11 +12,11 @@ export async function GET(request: NextRequest) {
 
   // Verify state to prevent CSRF attacks
   if (!state || !storedState || state !== storedState) {
-    return NextResponse.redirect('/auth-error?error=invalid_state');
+    return NextResponse.redirect(new URL('/auth-error?error=invalid_state', request.url));
   }
 
   if (!code) {
-    return NextResponse.redirect('/auth-error?error=no_code');
+    return NextResponse.redirect(new URL('/auth-error?error=no_code', request.url));
   }
 
   try {
@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
     // Clear the state cookie
     cookieStore.delete('oauth_state');
 
-    return NextResponse.redirect('/dashboard');
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   } catch (error) {
     console.error('Auth error:', error);
-    return NextResponse.redirect('/auth-error?error=token_exchange');
+    return NextResponse.redirect(new URL('/auth-error?error=token_exchange', request.url));
   }
 } 
