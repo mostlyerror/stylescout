@@ -68,6 +68,15 @@ log_action(f"Running in {'visible' if args.visible else 'headless'} mode", debug
 if args.force_login:
     log_action("Force login enabled - will perform fresh login", debug_level=1)
 
+def clear_auth_state():
+    """Clear the saved authentication state."""
+    if os.path.exists(STORAGE_STATE_PATH):
+        try:
+            os.remove(STORAGE_STATE_PATH)
+            log_action("Cleared saved authentication state")
+        except Exception as e:
+            log_action(f"Error clearing auth state: {str(e)}")
+
 def handle_tiktok_login(page, context):
     """Handle TikTok login process."""
     log_action("Checking login state...")
@@ -255,12 +264,42 @@ def handle_tiktok_login(page, context):
         
         # Check for captcha
         log_action("Checking for captcha...")
-        page.evaluate("""
-            const captchaFrame = document.querySelector('iframe[title*="captcha"]');
-            if (captchaFrame) {
-                throw new Error('Captcha detected');
-            }
-        """)
+        try:
+            page.evaluate("""
+                const captchaFrame = document.querySelector('iframe[title*="captcha"]');
+                if (captchaFrame) {
+                    throw new Error('Captcha detected');
+                }
+            """)
+        except Exception as e:
+            if "Captcha detected" in str(e):
+                log_action("Captcha detected! Please solve it manually...")
+                log_action("Waiting for captcha to be solved...")
+                
+                # Clear auth state when captcha is detected
+                clear_auth_state()
+                
+                # Wait for captcha to be solved (check every 2 seconds)
+                max_wait = 300  # 5 minutes max wait
+                start_time = time.time()
+                while time.time() - start_time < max_wait:
+                    try:
+                        # Check if captcha is still present
+                        page.evaluate("""
+                            const captchaFrame = document.querySelector('iframe[title*="captcha"]');
+                            if (captchaFrame) {
+                                throw new Error('Captcha still present');
+                            }
+                        """)
+                        log_action("Captcha solved! Continuing...")
+                        break
+                    except Exception:
+                        if time.time() - start_time >= max_wait:
+                            log_action("Timeout waiting for captcha to be solved")
+                            return False
+                        time.sleep(2)
+            else:
+                raise e
         
         # Wait for login to complete
         try:
@@ -282,10 +321,12 @@ def handle_tiktok_login(page, context):
             return True
         except Exception as e:
             log_action(f"Login might have failed: {str(e)}")
+            clear_auth_state()  # Clear auth state on login failure
             return False
             
     except Exception as e:
         log_action(f"Login error: {str(e)}")
+        clear_auth_state()  # Clear auth state on any login error
         return False
 
 def get_browser_context(playwright):
@@ -323,25 +364,62 @@ def get_fashion_videos():
         if not handle_tiktok_login(page, context):
             raise Exception("Failed to log in to TikTok. Please check your credentials and try again.")
         
-        # Navigate to search
-        log_action("Navigating to fashion search...")
-        page.goto("https://www.tiktok.com/search?q=fashion")
-
-        # wait for page to load
-        page.wait_for_load_state('networkidle')
+        # Use the search bar instead of direct navigation
+        log_action("Using search bar to find fashion videos...")
+        page.evaluate("""
+            const searchBar = document.querySelector('input[type="search"]');
+            if (!searchBar) {
+                throw new Error('Search bar not found');
+            }
+            searchBar.value = 'fashion';
+            searchBar.dispatchEvent(new Event('input', { bubbles: true }));
+            searchBar.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+        """)
         
+        # Wait for search results to load
         log_action("Waiting for search results to load...")
-        try:
-            page.evaluate("""
-                const videoLinks = document.querySelectorAll('a[href*="/video/"]');
-                if (!videoLinks.length) {
-                    throw new Error('No videos found in search results');
-                }
-            """)
-            log_action("Found video links in search results...", debug_level=2)
-        except Exception as e:
-            log_action(f"No videos found: {str(e)}")
-            return []
+        page.wait_for_load_state('networkidle')
+        time.sleep(3)  # Additional delay for results to render
+        
+        # Try to find video links with a timeout
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                log_action(f"Attempt {attempt + 1}/{max_attempts}: Searching for video links...", debug_level=2)
+                
+                # Debug: Log all links on the page
+                page.evaluate("""
+                    const allLinks = document.querySelectorAll('a');
+                    const linkInfo = Array.from(allLinks).map(link => ({
+                        href: link.href,
+                        text: link.textContent.trim(),
+                        isVideo: link.href.includes('/video/')
+                    }));
+                    linkInfo;
+                """)
+                
+                # Try to find video links
+                page.evaluate("""
+                    const videoLinks = document.querySelectorAll('a[href*="/video/"]');
+                    if (!videoLinks.length) {
+                        throw new Error('No videos found in search results');
+                    }
+                """)
+                
+                # Debug: Log the number of video links found
+                video_count = page.evaluate("""
+                    document.querySelectorAll('a[href*="/video/"]').length;
+                """)
+                log_action(f"Found {video_count} video links in search results...", debug_level=2)
+                break
+                
+            except Exception as e:
+                if attempt == max_attempts - 1:
+                    log_action(f"No videos found after {max_attempts} attempts: {str(e)}")
+                    return []
+                log_action(f"Attempt {attempt + 1}/{max_attempts}: Waiting for videos to load...", debug_level=1)
+                log_action(f"Error on attempt {attempt + 1}: {str(e)}", debug_level=2)
+                time.sleep(2)  # Wait 2 seconds between attempts
 
         video_links = page.evaluate("""
             const links = document.querySelectorAll('a[href*="/video/"]');
